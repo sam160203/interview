@@ -57,6 +57,20 @@ spec:
 
     stages {
 
+        // =========================
+        // Stage 1: Checkout Code
+        // =========================
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', 
+                    credentialsId: 'github-credentials-sam',
+                    url: 'https://github.com/sam160203/interview.git'
+            }
+        }
+
+        // =========================
+        // Stage 2: Install + Build Frontend
+        // =========================
         stage('Install + Build Frontend') {
             steps {
                 container('node') {
@@ -65,7 +79,7 @@ spec:
                         string(credentialsId: 'stream-secret', variable: 'STREAM_SECRET_KEY')
                     ]) {
                         sh '''
-                            # Generate .env.local with all keys
+                            # Create .env.local with all keys
                             echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" > .env.local
                             echo "CLERK_SECRET_KEY=$CLERK_SECRET_KEY" >> .env.local
                             echo "NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL" >> .env.local
@@ -81,11 +95,13 @@ spec:
             }
         }
 
+        // =========================
+        // Stage 3: Build Docker Image
+        // =========================
         stage('Build Docker Image') {
             steps {
                 container('dind') {
                     sh '''
-                        sleep 10
                         docker build \
                             --build-arg NEXT_PUBLIC_CONVEX_URL="$NEXT_PUBLIC_CONVEX_URL" \
                             --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
@@ -96,23 +112,29 @@ spec:
             }
         }
 
+        // =========================
+        // Stage 4: SonarQube Analysis
+        // =========================
         stage('SonarQube Analysis') {
             steps {
                 container('sonar-scanner') {
                     withCredentials([string(credentialsId: 'sonarqube-token-imcc', variable: 'SONAR_TOKEN')]) {
                         sh '''
                             sonar-scanner \
-                                -Dsonar.token=$SONAR_TOKEN \
-                                -Dsonar.projectKey=interview-stream-app \
+                                -Dsonar.projectKey=interviewhub-app \
                                 -Dsonar.sources=. \
-                                -Dsonar.host.url=http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000
+                                -Dsonar.host.url=http://192.168.20.250:9000 \
+                                -Dsonar.login=$SONAR_TOKEN
                         '''
                     }
                 }
             }
         }
 
-        stage('Login to Nexus Registry') {
+        // =========================
+        // Stage 5: Login to Nexus
+        // =========================
+        stage('Login to Nexus') {
             steps {
                 container('dind') {
                     withCredentials([usernamePassword(
@@ -129,6 +151,9 @@ spec:
             }
         }
 
+        // =========================
+        // Stage 6: Push Docker Image
+        // =========================
         stage('Push to Nexus') {
             steps {
                 container('dind') {
@@ -143,6 +168,9 @@ spec:
             }
         }
 
+        // =========================
+        // Stage 7: Deploy to Kubernetes
+        // =========================
         stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
@@ -156,6 +184,9 @@ spec:
             }
         }
 
+        // =========================
+        // Stage 8: Debug Pods
+        // =========================
         stage('Debug Pods') {
             steps {
                 container('kubectl') {
