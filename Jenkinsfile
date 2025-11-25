@@ -113,23 +113,23 @@ spec:
         }
 
         // =========================
-        // Stage 4: SonarQube Analysis
-        // =========================
-        stage('SonarQube Analysis') {
-            steps {
-                container('sonar-scanner') {
-                    withCredentials([string(credentialsId: 'sonarqube-token-imcc', variable: 'SONAR_TOKEN')]) {
-                        sh '''
-                            sonar-scanner \
-                                -Dsonar.projectKey=interviewhub-app \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=http://192.168.20.250:9000 \
-                                -Dsonar.login=$SONAR_TOKEN
-                        '''
-                    }
-                }
+// Stage 4: SonarQube Analysis
+// =========================
+stage('SonarQube Analysis') {
+    steps {
+        container('sonar-scanner') {
+            withCredentials([string(credentialsId: 'sonarqube-token-imcc', variable: 'SONAR_TOKEN')]) {
+                sh '''
+                    sonar-scanner \
+                        -Dsonar.projectKey=interviewhub-app \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000 \
+                        -Dsonar.login=$SONAR_TOKEN
+                '''
             }
         }
+    }
+}
 
         // =========================
         // Stage 5: Login to Nexus
