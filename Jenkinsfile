@@ -209,19 +209,19 @@ pipeline {
     environment {
         # SonarQube
         SONAR_HOST = "http://sonarqube.imcc.com/"
-        SONAR_TOKEN = credentials('sonar-token')
+        SONAR_TOKEN = credentials('sonar-token-2401072')
 
         # Nexus
         NEXUS_URL = "http://nexus.imcc.com/"
         IMAGE_NAME = "nextjs-project"
 
         # Next.js ENV Variables from Jenkins Credentials
-        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub')
-        CLERK_SECRET_KEY                  = credentials('clerk-secret')
-        CONVEX_DEPLOYMENT                 = credentials('convex-deploy')
-        NEXT_PUBLIC_CONVEX_URL            = credentials('convex-url')
-        NEXT_PUBLIC_STREAM_API_KEY        = credentials('stream-pub')
-        STREAM_SECRET_KEY                 = credentials('stream-secret')
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
+        CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
+        CONVEX_DEPLOYMENT                 = credentials('convex-deploy-2401072')
+        NEXT_PUBLIC_CONVEX_URL            = credentials('convex-url-2401072')
+        NEXT_PUBLIC_STREAM_API_KEY        = credentials('stream-pub-2401072')
+        STREAM_SECRET_KEY                 = credentials('stream-secret-2401072')
     }
 
     stages {
@@ -229,7 +229,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 git branch: 'main',
-                    url: 'YOUR_REPO_URL'
+                    url: 'https://github.com/sam160203/interview'
             }
         }
 
@@ -274,7 +274,7 @@ pipeline {
         stage('Push to Nexus') {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'nexus-creds',
+                    credentialsId: 'nexus-creds-2401072',
                     usernameVariable: 'NEXUS_USER',
                     passwordVariable: 'NEXUS_PASS'
                 )]) {
@@ -304,4 +304,5 @@ pipeline {
         }
     }
 }
+
 
