@@ -104,7 +104,6 @@
 
 
 pipeline {
-    // REPLACED 'agent any' with the specialized Kubernetes Pod agent
     agent {
         kubernetes {
             yaml '''
@@ -156,60 +155,51 @@ spec:
     }
 
     environment {
-        // SonarQube
-        SONAR_HOST = "http://sonarqube.imcc.com/"
+        // SonarQube Details (Internal Cluster DNS)
+        SONAR_HOST = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000" 
         SONAR_TOKEN = credentials('sonar-token-2401072')
 
-        // Nexus
-        NEXUS_URL = "http://nexus.imcc.com/"
-        IMAGE_NAME = "nextjs-project"
+        // Nexus Registry Details
+        NEXUS_URL = "http://nexus.imcc.com" 
+        IMAGE_NAME = "nextjs-project" 
+        NEXUS_CREDS_ID = 'nexus-creds-2401072' 
 
-        // Next.js ENV Variables from Jenkins Credentials
+        // Kubernetes Namespace ID
+        K8S_NAMESPACE = "2401072"
+        
+        // Next.js Secrets
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
-        CLERK_SECRET_KEY                 = credentials('clerk-secret-2401072')
-        CONVEX_DEPLOYMENT                = credentials('convex-deploy-2401072')
-        NEXT_PUBLIC_CONVEX_URL           = credentials('convex-url-2401072')
-        NEXT_PUBLIC_STREAM_API_KEY       = credentials('stream-pub-2401072')
-        STREAM_SECRET_KEY                = credentials('stream-secret-2401072')
+        CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
+        CONVEX_DEPLOYMENT                 = credentials('convex-deploy-2401072')
+        NEXT_PUBLIC_CONVEX_URL            = credentials('convex-url-2401072')
+        NEXT_PUBLIC_STREAM_API_KEY        = credentials('stream-pub-2401072')
+        STREAM_SECRET_KEY                 = credentials('stream-secret-2401072')
     }
 
     stages {
 
-        stage('Checkout Code') {
+        stage('Clean Workspace') {
             steps {
-                // Checkout runs on the main container (usually the first one, or 'node')
                 container('node') {
-                    git branch: 'main',
-                        url: 'https://github.com/sam160203/interview.git'
+                    sh 'rm -rf * || true'
                 }
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('Checkout Code') {
             steps {
-                // Run in the specialized sonar-scanner container
-                container('sonar-scanner') {
-                    withSonarQubeEnv('sonarqube-server') {
-                        sh """
-                        sonar-scanner \\
-                        -Dsonar.projectKey=2401072_interview-stream \\
-                        -Dsonar.sources=. \\
-                        -Dsonar.host.url=${SONAR_HOST} \\
-                        -Dsonar.login=${SONAR_TOKEN}
-                        """
-                    }
+                container('node') {
+                    git url:'https://github.com/sam160203/interview.git', branch:'main'
                 }
             }
         }
 
         stage('Install & Build Next.js') {
             steps {
-                // Run in the node container as it has yarn/npm/node
                 container('node') {
                     sh """
-                        echo "Creating .env file..."
+                        echo "Creating .env file for Next.js build..."
 
-                        // Create .env file for the build process
                         echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" > .env
                         echo "CLERK_SECRET_KEY=$CLERK_SECRET_KEY" >> .env
                         echo "CONVEX_DEPLOYMENT=$CONVEX_DEPLOYMENT" >> .env
@@ -224,9 +214,24 @@ spec:
             }
         }
 
+        stage('SonarQube Analysis') {
+            steps {
+                container('sonar-scanner') {
+                    withSonarQubeEnv('sonarqube-server') { 
+                        sh """
+                        sonar-scanner \\
+                        -Dsonar.projectKey=2401072_interview-stream \\
+                        -Dsonar.sources=. \\
+                        -Dsonar.host.url=${SONAR_HOST} \\
+                        -Dsonar.login=${SONAR_TOKEN}
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                // Run in the dind container to execute Docker commands
                 container('dind') {
                     sh "docker build -t ${IMAGE_NAME}:latest ."
                 }
@@ -235,16 +240,17 @@ spec:
 
         stage('Push to Nexus') {
             steps {
-                // Run in the dind container
                 container('dind') {
                     withCredentials([usernamePassword(
-                        credentialsId: 'nexus-creds-2401072',
+                        credentialsId: "${NEXUS_CREDS_ID}",
                         usernameVariable: 'NEXUS_USER',
                         passwordVariable: 'NEXUS_PASS'
                     )]) {
                         sh """
                         docker login ${NEXUS_URL} -u $NEXUS_USER -p $NEXUS_PASS
+
                         docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/repository/docker-hosted/${IMAGE_NAME}:latest
+
                         docker push ${NEXUS_URL}/repository/docker-hosted/${IMAGE_NAME}:latest
                         """
                     }
@@ -252,26 +258,49 @@ spec:
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Create Namespace') {
             steps {
-                // Run in the kubectl container which is configured with the kubeconfig secret
                 container('kubectl') {
                     sh """
-                        echo "Applying Kubernetes manifests from k8s/..."
-                        kubectl apply -f k8s/
+                        kubectl create namespace ${K8S_NAMESPACE} || echo "Namespace already exists"
+                        kubectl get ns
+                    """
+                }
+            }
+        }
 
-                        echo "Setting environment variables on deployment/nextjs-deployment..."
+        stage('Deploy to Kubernetes') {
+            steps {
+                container('kubectl') {
+                    sh """
+                        kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
+
+                        // Injecting sensitive environment variables directly into the K8s deployment
                         kubectl set env deployment/nextjs-deployment \\
                         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \\
                         CLERK_SECRET_KEY=$CLERK_SECRET_KEY \\
                         CONVEX_DEPLOYMENT=$CONVEX_DEPLOYMENT \\
                         NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL \\
                         NEXT_PUBLIC_STREAM_API_KEY=$NEXT_PUBLIC_STREAM_API_KEY \\
-                        STREAM_SECRET_KEY=$STREAM_SECRET_KEY
+                        STREAM_SECRET_KEY=$STREAM_SECRET_KEY \\
+                        -n ${K8S_NAMESPACE}
+                        
+                        kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=120s
+                    """
+                }
+            }
+        }
+
+        stage('Debug Deployment') {
+            steps {
+                container('kubectl') {
+                    sh """
+                        kubectl get all -n ${K8S_NAMESPACE}
+
+                        kubectl describe deployment nextjs-deployment -n ${K8S_NAMESPACE} | tail -n 10
                     """
                 }
             }
         }
     }
 }
-
