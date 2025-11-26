@@ -207,15 +207,15 @@ pipeline {
     agent any
 
     environment {
-        # SonarQube
+        // SonarQube
         SONAR_HOST = "http://sonarqube.imcc.com/"
         SONAR_TOKEN = credentials('sonar-token-2401072')
 
-        # Nexus
+        // Nexus
         NEXUS_URL = "http://nexus.imcc.com/"
         IMAGE_NAME = "nextjs-project"
 
-        # Next.js ENV Variables from Jenkins Credentials
+        // Next.js ENV Variables from Jenkins Credentials
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
         CONVEX_DEPLOYMENT                 = credentials('convex-deploy-2401072')
@@ -229,7 +229,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/sam160203/interview'
+                    url: 'https://github.com/sam160203/interview.git'
             }
         }
 
@@ -304,5 +304,6 @@ pipeline {
         }
     }
 }
+
 
 
