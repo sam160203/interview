@@ -238,7 +238,7 @@ pipeline {
                 withSonarQubeEnv('sonarqube-server') {
                     sh """
                         sonar-scanner \
-                        -Dsonar.projectKey=nextjs-project \
+                        -Dsonar.projectKey=2401072_interview-stream \
                         -Dsonar.sources=. \
                         -Dsonar.host.url=${SONAR_HOST} \
                         -Dsonar.login=${SONAR_TOKEN}
