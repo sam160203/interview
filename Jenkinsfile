@@ -160,7 +160,8 @@ spec:
         SONAR_TOKEN = credentials('sonar-token-2401072')
 
         // Nexus Registry Details
-        NEXUS_URL = "http://nexus.imcc.com" 
+        NEXUS_URL = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
+        NEXUS_REPO = "repository/2401072"
         IMAGE_NAME = "nextjs-project" 
         NEXUS_CREDS_ID = 'nexus-creds-2401072' 
 
