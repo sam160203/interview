@@ -241,17 +241,29 @@ spec:
         stage('Push to Nexus') {
             steps {
                 container('dind') {
-                    withCredentials([usernamePassword(
-                        credentialsId: "${NEXUS_CREDS_ID}",
-                        usernameVariable: 'NEXUS_USER',
-                        passwordVariable: 'NEXUS_PASS'
-                    )]) {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: NEXUS_CREDS_ID,
+                            usernameVariable: 'NEXUS_USER',
+                            passwordVariable: 'NEXUS_PASS'
+                        )
+                    ]) {
                         sh """
-                        docker login ${NEXUS_URL} -u $NEXUS_USER -p $NEXUS_PASS
+                            echo "Logging in to Nexus Docker Registry: ${NEXUS_URL}"
+                            docker login ${NEXUS_URL} -u $NEXUS_USER -p $NEXUS_PASS
 
-                        docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/repository/docker-hosted/${IMAGE_NAME}:latest
+                            // Image tag now uses the new repository path: repository/2401072
+                            IMAGE_TAG="${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:${BUILD_NUMBER}"
+                            
+                            echo "Tagging image: ${IMAGE_TAG}"
+                            docker tag ${IMAGE_NAME}:latest ${IMAGE_TAG}
 
-                        docker push ${NEXUS_URL}/repository/docker-hosted/${IMAGE_NAME}:latest
+                            echo "Pushing image to Nexus..."
+                            docker push ${IMAGE_TAG}
+
+                            // Update latest tag as well
+                            docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:latest
+                            docker push ${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:latest
                         """
                     }
                 }
