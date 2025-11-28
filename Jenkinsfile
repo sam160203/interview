@@ -186,7 +186,6 @@ spec:
         stage('Create Nexus Pull Secret') {
             steps {
                 container('kubectl') {
-                    // This uses Jenkins credentials to create the Kubernetes Secret
                     withCredentials([
                         usernamePassword(
                             credentialsId: NEXUS_CREDS_ID, // Using the Nexus Credential ID
@@ -196,10 +195,10 @@ spec:
                     ]) {
                         sh """
                             echo "Attempting to create/update nexus-pull-secret..."
-                            // Note: --dry-run and apply are used to handle creation/update without failing if it exists
-                            kubectl create secret docker-registry nexus-pull-secret \
-                                --docker-server=${NEXUS_URL} \
-                                --docker-username=$NEXUS_USER \
+                            # Note: --dry-run and apply are used to handle creation/update without failing if it exists (FIXED COMMENT)
+                            kubectl create secret docker-registry nexus-pull-secret \\
+                                --docker-server=${NEXUS_URL} \\
+                                --docker-username=$NEXUS_USER \\
                                 --docker-password=$NEXUS_PASS \
                                 -n ${K8S_NAMESPACE} || echo "Secret already exists or creation failed, proceeding..."
                         """
