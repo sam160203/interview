@@ -144,9 +144,8 @@ spec:
                             passwordVariable: 'NEXUS_PASS'
                         )
                     ]) {
-                        // FIX: Using script block to safely define Groovy variables (IMAGE_TAG)
+                        // FIX: Script block to safely define Groovy variables (imageTag)
                         script {
-                            // Calculate tags safely outside of the shell script to avoid Groovy error
                             def imageTag = "${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:${BUILD_NUMBER}"
                             def latestTag = "${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:latest"
 
@@ -154,13 +153,15 @@ spec:
                                 echo "Logging in to Nexus Docker Registry: ${NEXUS_URL}"
                                 docker login ${NEXUS_URL} -u $NEXUS_USER -p $NEXUS_PASS
 
+                                # Update latest tag (FIX: Changed // to #)
+                                
                                 echo "Tagging image: ${imageTag}"
                                 docker tag ${IMAGE_NAME}:latest ${imageTag}
 
                                 echo "Pushing image to Nexus..."
                                 docker push ${imageTag}
 
-                                // Update latest tag
+                                # Push the latest tag as well
                                 docker tag ${IMAGE_NAME}:latest ${latestTag}
                                 docker push ${latestTag}
                             """
