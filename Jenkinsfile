@@ -186,9 +186,11 @@ spec:
             steps {
                 container('kubectl') {
                     sh """
+                        echo "🚀 Applying Kubernetes manifests in namespace ${K8S_NAMESPACE}..."
                         kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
 
-                        # Injecting sensitive environment variables directly into the K8s deployment (FIX: Changed // to #)
+                        # Injecting sensitive environment variables directly into the K8s deployment
+                        echo "🔑 Injecting application secrets into deployment..."
                         kubectl set env deployment/nextjs-deployment \\
                         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \\
                         CLERK_SECRET_KEY=$CLERK_SECRET_KEY \\
@@ -198,6 +200,7 @@ spec:
                         STREAM_SECRET_KEY=$STREAM_SECRET_KEY \\
                         -n ${K8S_NAMESPACE}
                         
+                        echo "🔍 Waiting for deployment rollout..."
                         kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=120s
                     """
                 }
@@ -208,12 +211,14 @@ spec:
             steps {
                 container('kubectl') {
                     sh """
+                        echo "--- Kubernetes Status (Debug) ---"
                         kubectl get all -n ${K8S_NAMESPACE}
 
-                        kubectl describe deployment nextjs-deployment -n ${K8S_NAMESPACE} | tail -n 10
+                        # Show Pod details to find the exact error (ImagePullBackOff/CrashLoopBackOff)
+                        POD_NAME=\$(kubectl get pods -n ${K8S_NAMESPACE} -l app=nextjs-app -o jsonpath='{.items[0].metadata.name}')
+                        echo "--- Pod Description (\$POD_NAME) ---"
+                        kubectl describe pod \$POD_NAME -n ${K8S_NAMESPACE} | tail -n 25
                     """
                 }
             }
-        }
-    }
 }
