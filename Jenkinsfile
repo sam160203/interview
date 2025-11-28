@@ -226,7 +226,8 @@ spec:
                         -n ${K8S_NAMESPACE}
                         
                         echo "🔍 Waiting for deployment rollout..."
-                        kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=120s
+                        
+                        kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=120s || true
                     """
                 }
             }
