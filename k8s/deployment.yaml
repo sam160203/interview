@@ -1,3 +1,46 @@
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: nextjs-deployment
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels:
+#       app: nextjs-app
+#   template:
+#     metadata:
+#       labels:
+#         app: nextjs-app
+#     spec:
+#       containers:
+#         - name: nextjs-container
+#           image: nexus.imcc.com/repository/docker-hosted/nextjs-project:latest
+#           ports:
+#             - containerPort: 3000
+#           env:
+#             # Standard production variable
+#             - name: NODE_ENV
+#               value: production
+            
+#             # --- START: Next.js Pipeline Variables (Placeholders) ---
+#             # These variables are required by the application and will be set 
+#             # by the 'kubectl set env' command in the Jenkins pipeline after initial deployment.
+#             - name: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+#               value: "" 
+#             - name: CLERK_SECRET_KEY
+#               value: "" 
+#             - name: CONVEX_DEPLOYMENT
+#               value: "" 
+#             - name: NEXT_PUBLIC_CONVEX_URL
+#               value: "" 
+#             - name: NEXT_PUBLIC_STREAM_API_KEY
+#               value: "" 
+#             - name: STREAM_SECRET_KEY
+#               value: "" 
+#             # --- END: Next.js Pipeline Variables ---
+
+
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,6 +55,12 @@ spec:
       labels:
         app: nextjs-app
     spec:
+      // --- FIX: ImagePullSecret reference added ---
+      // Yeh Kubernetes ko batata hai ki private registry se image pull karne ke liye
+      // 'nexus-pull-secret' ka istemal karen.
+      imagePullSecrets:
+        - name: nexus-pull-secret 
+      // ------------------------------------------
       containers:
         - name: nextjs-container
           image: nexus.imcc.com/repository/docker-hosted/nextjs-project:latest
@@ -23,8 +72,6 @@ spec:
               value: production
             
             # --- START: Next.js Pipeline Variables (Placeholders) ---
-            # These variables are required by the application and will be set 
-            # by the 'kubectl set env' command in the Jenkins pipeline after initial deployment.
             - name: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
               value: "" 
             - name: CLERK_SECRET_KEY
