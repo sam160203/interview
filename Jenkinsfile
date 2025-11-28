@@ -188,7 +188,7 @@ spec:
                     sh """
                         kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
 
-                        // Injecting sensitive environment variables directly into the K8s deployment
+                        # Injecting sensitive environment variables directly into the K8s deployment (FIX: Changed // to #)
                         kubectl set env deployment/nextjs-deployment \\
                         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \\
                         CLERK_SECRET_KEY=$CLERK_SECRET_KEY \\
