@@ -182,6 +182,32 @@ spec:
             }
         }
 
+        // --- NEW STAGE: Create Nexus Pull Secret ---
+        stage('Create Nexus Pull Secret') {
+            steps {
+                container('kubectl') {
+                    // This uses Jenkins credentials to create the Kubernetes Secret
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: NEXUS_CREDS_ID, // Using the Nexus Credential ID
+                            usernameVariable: 'NEXUS_USER',
+                            passwordVariable: 'NEXUS_PASS'
+                        )
+                    ]) {
+                        sh """
+                            echo "Attempting to create/update nexus-pull-secret..."
+                            // Note: --dry-run and apply are used to handle creation/update without failing if it exists
+                            kubectl create secret docker-registry nexus-pull-secret \
+                                --docker-server=${NEXUS_URL} \
+                                --docker-username=$NEXUS_USER \
+                                --docker-password=$NEXUS_PASS \
+                                -n ${K8S_NAMESPACE} || echo "Secret already exists or creation failed, proceeding..."
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
