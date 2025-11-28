@@ -1,108 +1,3 @@
-// pipeline {
-//     agent any
-
-//     environment {
-//         // SonarQube
-//         SONAR_HOST = "http://sonarqube.imcc.com/"
-//         SONAR_TOKEN = credentials('sonar-token-2401072')
-
-//         // Nexus
-//         NEXUS_URL = "http://nexus.imcc.com/"
-//         IMAGE_NAME = "nextjs-project"
-
-//         // Next.js ENV Variables from Jenkins Credentials
-//         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
-//         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
-//         CONVEX_DEPLOYMENT                 = credentials('convex-deploy-2401072')
-//         NEXT_PUBLIC_CONVEX_URL            = credentials('convex-url-2401072')
-//         NEXT_PUBLIC_STREAM_API_KEY        = credentials('stream-pub-2401072')
-//         STREAM_SECRET_KEY                 = credentials('stream-secret-2401072')
-//     }
-
-//     stages {
-
-//         stage('Checkout Code') {
-//             steps {
-//                 git branch: 'main',
-//                     url: 'https://github.com/sam160203/interview.git'
-//             }
-//         }
-
-//         stage('SonarQube Analysis') {
-//             steps {
-//                 withSonarQubeEnv('sonarqube-server') {
-//                     sh """
-//                         sonar-scanner \
-//                         -Dsonar.projectKey=2401072_interview-stream \
-//                         -Dsonar.sources=. \
-//                         -Dsonar.host.url=${SONAR_HOST} \
-//                         -Dsonar.login=${SONAR_TOKEN}
-//                     """
-//                 }
-//             }
-//         }
-
-//         stage('Install & Build Next.js') {
-//             steps {
-//                 sh """
-//                     echo "Creating .env file..."
-
-//                     echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" > .env
-//                     echo "CLERK_SECRET_KEY=$CLERK_SECRET_KEY" >> .env
-//                     echo "CONVEX_DEPLOYMENT=$CONVEX_DEPLOYMENT" >> .env
-//                     echo "NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL" >> .env
-//                     echo "NEXT_PUBLIC_STREAM_API_KEY=$NEXT_PUBLIC_STREAM_API_KEY" >> .env
-//                     echo "STREAM_SECRET_KEY=$STREAM_SECRET_KEY" >> .env
-
-//                     yarn install
-//                     yarn build
-//                 """
-//             }
-//         }
-
-//         stage('Build Docker Image') {
-//             steps {
-//                 sh "docker build -t ${IMAGE_NAME}:latest ."
-//             }
-//         }
-
-//         stage('Push to Nexus') {
-//             steps {
-//                 withCredentials([usernamePassword(
-//                     credentialsId: 'nexus-creds-2401072',
-//                     usernameVariable: 'NEXUS_USER',
-//                     passwordVariable: 'NEXUS_PASS'
-//                 )]) {
-//                     sh """
-//                         docker login ${NEXUS_URL} -u $NEXUS_USER -p $NEXUS_PASS
-//                         docker tag ${IMAGE_NAME}:latest nexus.imcc.com/repository/docker-hosted/${IMAGE_NAME}:latest
-//                         docker push nexus.imcc.com/repository/docker-hosted/${IMAGE_NAME}:latest
-//                     """
-//                 }
-//             }
-//         }
-
-//         stage('Deploy to Kubernetes') {
-//             steps {
-//                 sh """
-//                     kubectl apply -f k8s/
-
-//                     kubectl set env deployment/nextjs-deployment \
-//                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
-//                     CLERK_SECRET_KEY=$CLERK_SECRET_KEY \
-//                     CONVEX_DEPLOYMENT=$CONVEX_DEPLOYMENT \
-//                     NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL \
-//                     NEXT_PUBLIC_STREAM_API_KEY=$NEXT_PUBLIC_STREAM_API_KEY \
-//                     STREAM_SECRET_KEY=$STREAM_SECRET_KEY
-//                 """
-//             }
-//         }
-//     }
-// }
-
-
-
-
 pipeline {
     agent {
         kubernetes {
@@ -239,7 +134,7 @@ spec:
             }
         }
 
-        stage('Push to Nexus') {
+       stage('Push to Nexus') {
             steps {
                 container('dind') {
                     withCredentials([
@@ -249,23 +144,27 @@ spec:
                             passwordVariable: 'NEXUS_PASS'
                         )
                     ]) {
-                        sh """
-                            echo "Logging in to Nexus Docker Registry: ${NEXUS_URL}"
-                            docker login ${NEXUS_URL} -u $NEXUS_USER -p $NEXUS_PASS
+                        // FIX: Using script block to safely define Groovy variables (IMAGE_TAG)
+                        script {
+                            // Calculate tags safely outside of the shell script to avoid Groovy error
+                            def imageTag = "${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:${BUILD_NUMBER}"
+                            def latestTag = "${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:latest"
 
-                            // Image tag now uses the new repository path: repository/2401072
-                            IMAGE_TAG="${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:${BUILD_NUMBER}"
-                            
-                            echo "Tagging image: ${IMAGE_TAG}"
-                            docker tag ${IMAGE_NAME}:latest ${IMAGE_TAG}
+                            sh """
+                                echo "Logging in to Nexus Docker Registry: ${NEXUS_URL}"
+                                docker login ${NEXUS_URL} -u $NEXUS_USER -p $NEXUS_PASS
 
-                            echo "Pushing image to Nexus..."
-                            docker push ${IMAGE_TAG}
+                                echo "Tagging image: ${imageTag}"
+                                docker tag ${IMAGE_NAME}:latest ${imageTag}
 
-                            // Update latest tag as well
-                            docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:latest
-                            docker push ${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:latest
-                        """
+                                echo "Pushing image to Nexus..."
+                                docker push ${imageTag}
+
+                                // Update latest tag
+                                docker tag ${IMAGE_NAME}:latest ${latestTag}
+                                docker push ${latestTag}
+                            """
+                        }
                     }
                 }
             }
