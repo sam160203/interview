@@ -55,12 +55,10 @@ spec:
       labels:
         app: nextjs-app
     spec:
-      // --- FIX: ImagePullSecret reference added ---
-      // Yeh Kubernetes ko batata hai ki private registry se image pull karne ke liye
-      // 'nexus-pull-secret' ka istemal karen.
+      # --- CRITICAL FIX: ImagePullSecrets must be here (6 spaces indentation) ---
       imagePullSecrets:
         - name: nexus-pull-secret 
-      // ------------------------------------------
+      # -------------------------------------------------------------------------
       containers:
         - name: nextjs-container
           image: nexus.imcc.com/repository/docker-hosted/nextjs-project:latest
