@@ -226,6 +226,7 @@ spec:
         SONAR_HOST_URL    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
         SONAR_PROJECT     = "2401072_interview-stream"
 
+        // Credentials
         SONAR_TOKEN                       = credentials('sonar-token-2401072')
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
@@ -292,19 +293,20 @@ spec:
                             sh """
                                 kubectl create namespace ${NAMESPACE} || true
                                 
-                                # Purane deployments ko clean karo takki resource release ho jaye
+                                # Clean up purane atke hue deployments
                                 kubectl delete deployment nextjs-deployment -n ${NAMESPACE} || true
                                 
-                                # Pull Secret creation
+                                # Secret for Nexus
                                 kubectl delete secret nexus-secret -n ${NAMESPACE} || true
                                 kubectl create secret docker-registry nexus-secret --docker-server=${REGISTRY_URL} --docker-username=student --docker-password=Imcc@2025 -n ${NAMESPACE}
                                 
-                                # Apply fresh manifests
+                                # Apply all files from k8s folder (Deployment, Service, Ingress)
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # Image and Env updates
+                                # Force update the image
                                 kubectl set image deployment/${APP_NAME}-deployment ${APP_NAME}=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
+                                # Update Env Variables
                                 kubectl set env deployment/${APP_NAME}-deployment \\
                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
@@ -317,7 +319,11 @@ spec:
                                 kubectl rollout status deployment/${APP_NAME}-deployment -n ${NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {
-                            sh "kubectl get pods -n ${NAMESPACE} && exit 1"
+                            sh """
+                                echo "Deployment failed! Printing pods status..."
+                                kubectl get pods -n ${NAMESPACE}
+                                exit 1
+                            """
                         }
                     }
                 }
