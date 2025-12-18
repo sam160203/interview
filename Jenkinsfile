@@ -304,7 +304,7 @@ spec:
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
                                 # Force update the image
-                                kubectl set image deployment/${APP_NAME}-deployment ${APP_NAME}=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
+                                kubectl set image deployment/nextjs-app-deployment nextjs-app=${REGISTRY_URL}/v2/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
                                 # Update Env Variables
                                 kubectl set env deployment/${APP_NAME}-deployment \\
