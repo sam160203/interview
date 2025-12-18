@@ -218,17 +218,18 @@ spec:
     }
 
     environment {
-        // Aligned with YAML placeholders
+        // Naye placeholders ke hisaab se values
         NAMESPACE         = "2401072"             // <NAMESPACE>
         APP_NAME          = "nextjs-app"          // <APP_NAME>
-        PROJECT_NAMESPACE = "v2"                  // <PROJECT_NAMESPACE>
+        APP_PORT          = "3000"                // <APP_PORT>
+        PROJECT_NAMESPACE = "v2"                  // Nexus folder
         TAG               = "v1"                  // <TAG>
         
         REGISTRY_URL      = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
         SONAR_HOST_URL    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
         SONAR_PROJECT     = "2401072_interview-stream"
 
-        // Jenkins Credentials
+        // Credentials
         SONAR_TOKEN                       = credentials('sonar-token-2401072')
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
@@ -252,7 +253,6 @@ spec:
             steps {
                 container('node') {
                     sh """
-                        echo "Generating .env file..."
                         echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}" > .env
                         echo "CLERK_SECRET_KEY=${CLERK_SECRET_KEY}" >> .env
                         echo "CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT}" >> .env
@@ -268,13 +268,7 @@ spec:
         stage('SonarQube Analysis') {
             steps {
                 container('sonar-scanner') {
-                    sh """
-                        sonar-scanner \\
-                        -Dsonar.projectKey=${SONAR_PROJECT} \\
-                        -Dsonar.sources=. \\
-                        -Dsonar.host.url=${SONAR_HOST_URL} \\
-                        -Dsonar.login=${SONAR_TOKEN}
-                    """
+                    sh "sonar-scanner -Dsonar.projectKey=${SONAR_PROJECT} -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
                 }
             }
         }
@@ -288,7 +282,7 @@ spec:
                         
                         docker build -t ${APP_NAME}:${TAG} .
                         
-                        # Tagging to match your Nexus browse screenshot (v2 folder)
+                        # Tagging as per Nexus screenshot structure
                         docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                         docker push ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                     """
@@ -311,10 +305,9 @@ spec:
                                     --docker-username=student \\
                                     --docker-password=Imcc@2025 -n ${NAMESPACE}
                                 
-                                # Apply the Deployment YAML (ensure it is in k8s/ folder)
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # Update image in deployment/nextjs-app-deployment
+                                # Update Image path in deployment
                                 kubectl set image deployment/${APP_NAME}-deployment ${APP_NAME}=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
                                 # Set Env Secrets
@@ -330,12 +323,7 @@ spec:
                                 kubectl rollout status deployment/${APP_NAME}-deployment -n ${NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {
-                            sh """
-                                echo "Deployment failed! Printing debug info..."
-                                kubectl get pods -n ${NAMESPACE}
-                                kubectl describe pods -n ${NAMESPACE} | head -n 50
-                                exit 1
-                            """
+                            sh "kubectl get pods -n ${NAMESPACE} && exit 1"
                         }
                     }
                 }
