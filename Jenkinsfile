@@ -218,18 +218,14 @@ spec:
     }
 
     environment {
-        // Naye placeholders ke hisaab se values
-        NAMESPACE         = "2401072"             // <NAMESPACE>
-        APP_NAME          = "nextjs-app"          // <APP_NAME>
-        APP_PORT          = "3000"                // <APP_PORT>
-        PROJECT_NAMESPACE = "v2"                  // Nexus folder
-        TAG               = "v1"                  // <TAG>
-        
+        NAMESPACE         = "2401072"
+        APP_NAME          = "nextjs-app"
+        PROJECT_NAMESPACE = "v2"
+        TAG               = "v1"
         REGISTRY_URL      = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
         SONAR_HOST_URL    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
         SONAR_PROJECT     = "2401072_interview-stream"
 
-        // Credentials
         SONAR_TOKEN                       = credentials('sonar-token-2401072')
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
@@ -253,6 +249,7 @@ spec:
             steps {
                 container('node') {
                     sh """
+                        echo "Generating .env file..."
                         echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}" > .env
                         echo "CLERK_SECRET_KEY=${CLERK_SECRET_KEY}" >> .env
                         echo "CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT}" >> .env
@@ -279,10 +276,9 @@ spec:
                     sh """
                         while (! docker stats --no-stream ); do sleep 1; done
                         docker login ${REGISTRY_URL} -u student -p Imcc@2025
-                        
                         docker build -t ${APP_NAME}:${TAG} .
                         
-                        # Tagging as per Nexus screenshot structure
+                        # Tagging strictly for the 'v2' folder as seen in screenshot
                         docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                         docker push ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                     """
@@ -298,28 +294,18 @@ spec:
                             sh """
                                 kubectl create namespace ${NAMESPACE} || true
                                 
-                                # Pull Secret name is 'nexus-secret' (Do not change)
+                                # Pull Secret: Name MUST be 'nexus-secret'
                                 kubectl delete secret nexus-secret -n ${NAMESPACE} || true
-                                kubectl create secret docker-registry nexus-secret \\
-                                    --docker-server=${REGISTRY_URL} \\
-                                    --docker-username=student \\
-                                    --docker-password=Imcc@2025 -n ${NAMESPACE}
+                                kubectl create secret docker-registry nexus-secret --docker-server=${REGISTRY_URL} --docker-username=student --docker-password=Imcc@2025 -n ${NAMESPACE}
                                 
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # Update Image path in deployment
+                                # Updating Deployment Image
                                 kubectl set image deployment/${APP_NAME}-deployment ${APP_NAME}=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
-                                # Set Env Secrets
-                                kubectl set env deployment/${APP_NAME}-deployment \\
-                                    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
-                                    CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
-                                    CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} \\
-                                    NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} \\
-                                    NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} \\
-                                    STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${NAMESPACE}
+                                # Updating Env Variables
+                                kubectl set env deployment/${APP_NAME}-deployment NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} CLERK_SECRET_KEY=${CLERK_SECRET_KEY} CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${NAMESPACE}
                                 
-                                echo "Waiting for rollout..."
                                 kubectl rollout status deployment/${APP_NAME}-deployment -n ${NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {
