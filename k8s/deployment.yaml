@@ -20,4 +20,4 @@ spec:
           image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/v2/2401072_nextjs-project:v1
           ports:
             - containerPort: 3000
-          # Probes, PVC, aur Resources hata diye hain taaki pod start ho jaye
+          # Env values pipeline se update hongi
