@@ -298,16 +298,15 @@ spec:
     }
 
     environment {
-        // SonarQube Settings
         SONAR_HOST    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
-        SONAR_AUTH    = "sqp_47e2a797ae3cc173d07184483e7b25bf6fad1326"
         
-        // Nexus Settings (Port 8085 maps to 'my-repository')
+        // Nexus Settings
         NEXUS_URL     = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
         IMAGE_NAME    = "2401072_nextjs-project"
         K8S_NAMESPACE = "2401072"
 
-        // App Credentials for .env
+        // Jenkins Credentials
+        SONAR_TOKEN                       = credentials('sonar-token-2401072')
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
         CONVEX_DEPLOYMENT                 = credentials('convex-deploy-2401072')
@@ -348,27 +347,27 @@ spec:
                 container('sonar-scanner') {
                     sh """
                         sonar-scanner \\
-                        -Dsonar.projectKey=${K8S_NAMESPACE}_interview \\
+                        -Dsonar.projectKey=2401072_interview-stream \\
                         -Dsonar.sources=. \\
                         -Dsonar.host.url=${SONAR_HOST} \\
-                        -Dsonar.login=${SONAR_AUTH}
+                        -Dsonar.login=${SONAR_TOKEN}
                     """
                 }
             }
         }
 
-        stage('Docker Build & Push to Nexus') {
+        stage('Docker Build & Push') {
             steps {
                 container('dind') {
                     sh """
                         sleep 10
-                        echo "=== Logging into Nexus (student) ==="
+                        echo "Logging into Nexus with student account..."
                         docker login ${NEXUS_URL} -u student -p Imcc@2025
                         
-                        echo "=== Building Image ==="
+                        echo "Building Image..."
                         docker build -t ${IMAGE_NAME}:latest .
                         
-                        echo "=== Tagging and Pushing (Auto-creates repo in my-repository) ==="
+                        echo "Tagging and Pushing (Creates repo automatically)..."
                         docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/${IMAGE_NAME}:v1
                         docker push ${NEXUS_URL}/${IMAGE_NAME}:v1
                     """
@@ -384,21 +383,18 @@ spec:
                             sh """
                                 kubectl create namespace ${K8S_NAMESPACE} || true
                                 
-                                echo "=== Setting up Pull Secret for Nexus ==="
+                                # Pull secret using student login
                                 kubectl delete secret nexus-pull-secret -n ${K8S_NAMESPACE} || true
                                 kubectl create secret docker-registry nexus-pull-secret \\
                                     --docker-server=${NEXUS_URL} \\
                                     --docker-username=student \\
                                     --docker-password=Imcc@2025 -n ${K8S_NAMESPACE}
                                 
-                                echo "=== Applying K8s Manifests ==="
                                 kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
 
-                                echo "=== Updating Image and Env Vars ==="
-                                # Update container image to the one we just pushed
+                                # Update image in deployment
                                 kubectl set image deployment/nextjs-deployment nextjs-container=${NEXUS_URL}/${IMAGE_NAME}:v1 -n ${K8S_NAMESPACE}
                                 
-                                # Set runtime environment variables
                                 kubectl set env deployment/nextjs-deployment \\
                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
@@ -407,7 +403,7 @@ spec:
                                     NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} \\
                                     STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${K8S_NAMESPACE}
                                 
-                                echo "=== Waiting for Rollout ==="
+                                echo "Waiting for rollout..."
                                 kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {
