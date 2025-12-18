@@ -300,7 +300,7 @@ spec:
     environment {
         SONAR_HOST    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
         
-        // Nexus Settings
+        // Nexus Settings (Screenshot ke hisaab se v2 prefix use kiya hai)
         NEXUS_URL     = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
         IMAGE_NAME    = "2401072_nextjs-project"
         K8S_NAMESPACE = "2401072"
@@ -361,15 +361,15 @@ spec:
                 container('dind') {
                     sh """
                         sleep 10
-                        echo "Logging into Nexus with student account..."
+                        echo "Logging into Nexus..."
                         docker login ${NEXUS_URL} -u student -p Imcc@2025
                         
                         echo "Building Image..."
                         docker build -t ${IMAGE_NAME}:latest .
                         
-                        echo "Tagging and Pushing (Creates repo automatically)..."
-                        docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/${IMAGE_NAME}:v1
-                        docker push ${NEXUS_URL}/${IMAGE_NAME}:v1
+                        echo "Tagging and Pushing to v2 folder (as per Nexus screenshot)..."
+                        docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/v2/${IMAGE_NAME}:v1
+                        docker push ${NEXUS_URL}/v2/${IMAGE_NAME}:v1
                     """
                 }
             }
@@ -383,7 +383,7 @@ spec:
                             sh """
                                 kubectl create namespace ${K8S_NAMESPACE} || true
                                 
-                                # Pull secret using student login
+                                # Pull secret creation
                                 kubectl delete secret nexus-pull-secret -n ${K8S_NAMESPACE} || true
                                 kubectl create secret docker-registry nexus-pull-secret \\
                                     --docker-server=${NEXUS_URL} \\
@@ -392,8 +392,8 @@ spec:
                                 
                                 kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
 
-                                # Update image in deployment
-                                kubectl set image deployment/nextjs-deployment nextjs-container=${NEXUS_URL}/${IMAGE_NAME}:v1 -n ${K8S_NAMESPACE}
+                                # Update image path to include v2/ prefix
+                                kubectl set image deployment/nextjs-deployment nextjs-container=${NEXUS_URL}/v2/${IMAGE_NAME}:v1 -n ${K8S_NAMESPACE}
                                 
                                 kubectl set env deployment/nextjs-deployment \\
                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
@@ -408,7 +408,7 @@ spec:
                             """
                         } catch (Exception e) {
                             sh """
-                                echo "Deployment failed! Debugging..."
+                                echo "Deployment failed! Printing debug info..."
                                 kubectl get pods -n ${K8S_NAMESPACE}
                                 kubectl describe pods -n ${K8S_NAMESPACE} | head -n 50
                                 exit 1

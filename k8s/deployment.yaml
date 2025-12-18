@@ -62,7 +62,7 @@ spec:
       containers:
         - name: nextjs-container
           # CHANGE: Path updated to match the automatic repo creation logic
-          image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/2401072_nextjs-project:v1
+          image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/v2/2401072_nextjs-project:v1
           ports:
             - containerPort: 3000
           env:
