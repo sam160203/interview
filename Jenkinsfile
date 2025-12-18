@@ -381,20 +381,24 @@ spec:
                     script {
                         try {
                             sh """
+                                # 1. Namespace ensure karo
                                 kubectl create namespace ${K8S_NAMESPACE} || true
                                 
-                                # Pull secret creation
+                                # 2. PULL SECRET FIX: Isme port 8085 aur student credentials check karo
                                 kubectl delete secret nexus-pull-secret -n ${K8S_NAMESPACE} || true
                                 kubectl create secret docker-registry nexus-pull-secret \\
                                     --docker-server=${NEXUS_URL} \\
                                     --docker-username=student \\
-                                    --docker-password=Imcc@2025 -n ${K8S_NAMESPACE}
+                                    --docker-password=Imcc@2025 \\
+                                    --namespace=${K8S_NAMESPACE}
                                 
+                                # 3. Manifests apply karo
                                 kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
 
-                                # Update image path to include v2/ prefix
+                                # 4. Image Update (v2 prefix ke sath)
                                 kubectl set image deployment/nextjs-deployment nextjs-container=${NEXUS_URL}/v2/${IMAGE_NAME}:v1 -n ${K8S_NAMESPACE}
                                 
+                                # 5. Env Vars setup
                                 kubectl set env deployment/nextjs-deployment \\
                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
@@ -408,9 +412,8 @@ spec:
                             """
                         } catch (Exception e) {
                             sh """
-                                echo "Deployment failed! Printing debug info..."
-                                kubectl get pods -n ${K8S_NAMESPACE}
-                                kubectl describe pods -n ${K8S_NAMESPACE} | head -n 50
+                                echo "DEPLOYMENT FAILED - Check Pull Secret permissions"
+                                kubectl get events -n ${K8S_NAMESPACE} --sort-by='.lastTimestamp' | tail -n 10
                                 exit 1
                             """
                         }
