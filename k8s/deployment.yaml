@@ -12,6 +12,10 @@
 #       labels:
 #         app: nextjs-app
 #     spec:
+#       # --- CRITICAL FIX: ImagePullSecrets must be here (6 spaces indentation) ---
+#       imagePullSecrets:
+#         - name: nexus-pull-secret 
+#       # -------------------------------------------------------------------------
 #       containers:
 #         - name: nextjs-container
 #           image: nexus.imcc.com/repository/docker-hosted/nextjs-project:latest
@@ -23,8 +27,6 @@
 #               value: production
             
 #             # --- START: Next.js Pipeline Variables (Placeholders) ---
-#             # These variables are required by the application and will be set 
-#             # by the 'kubectl set env' command in the Jenkins pipeline after initial deployment.
 #             - name: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 #               value: "" 
 #             - name: CLERK_SECRET_KEY
@@ -55,31 +57,26 @@ spec:
       labels:
         app: nextjs-app
     spec:
-      # --- CRITICAL FIX: ImagePullSecrets must be here (6 spaces indentation) ---
       imagePullSecrets:
-        - name: nexus-pull-secret 
-      # -------------------------------------------------------------------------
+        - name: nexus-pull-secret
       containers:
         - name: nextjs-container
-          image: nexus.imcc.com/repository/docker-hosted/nextjs-project:latest
+          # Pipeline automatically updates this image tag
+          image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/repository/2401072/nextjs-project:latest
           ports:
             - containerPort: 3000
           env:
-            # Standard production variable
             - name: NODE_ENV
               value: production
-            
-            # --- START: Next.js Pipeline Variables (Placeholders) ---
             - name: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-              value: "" 
+              value: ""
             - name: CLERK_SECRET_KEY
-              value: "" 
+              value: ""
             - name: CONVEX_DEPLOYMENT
-              value: "" 
+              value: ""
             - name: NEXT_PUBLIC_CONVEX_URL
-              value: "" 
+              value: ""
             - name: NEXT_PUBLIC_STREAM_API_KEY
-              value: "" 
+              value: ""
             - name: STREAM_SECRET_KEY
-              value: "" 
-            # --- END: Next.js Pipeline Variables ---
+              value: ""
