@@ -61,13 +61,14 @@ spec:
         - name: nexus-pull-secret
       containers:
         - name: nextjs-container
-          # Pipeline automatically updates this image tag
-          image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/repository/2401072/nextjs-project:latest
+          # CHANGE: Path updated to match the automatic repo creation logic
+          image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/2401072_nextjs-project:v1
           ports:
             - containerPort: 3000
           env:
             - name: NODE_ENV
               value: production
+            # These will be overwritten by 'kubectl set env' in your pipeline
             - name: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
               value: ""
             - name: CLERK_SECRET_KEY
