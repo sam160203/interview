@@ -6,24 +6,20 @@
 // kind: Pod
 // spec:
 //   containers:
-
 //   - name: node
 //     image: node:18
 //     command: ['cat']
 //     tty: true
-
 //   - name: sonar-scanner
 //     image: sonarsource/sonar-scanner-cli
 //     command: ['cat']
 //     tty: true
-
 //   - name: kubectl
 //     image: bitnami/kubectl:latest
 //     command: ['cat']
 //     tty: true
 //     securityContext:
 //       runAsUser: 0
-//       readOnlyRootFilesystem: false
 //     env:
 //     - name: KUBECONFIG
 //       value: /kube/config
@@ -31,7 +27,6 @@
 //     - name: kubeconfig-secret
 //       mountPath: /kube/config
 //       subPath: kubeconfig
-
 //   - name: dind
 //     image: docker:dind
 //     args: ["--storage-driver=overlay2", "--insecure-registry=nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"]
@@ -40,7 +35,6 @@
 //     env:
 //     - name: DOCKER_TLS_CERTDIR
 //       value: ""
-
 //   volumes:
 //   - name: kubeconfig-secret
 //     secret:
@@ -50,20 +44,15 @@
 //     }
 
 //     environment {
-//         // SonarQube Details (Internal Cluster DNS)
-//         SONAR_HOST = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000" 
-//         SONAR_TOKEN = credentials('sonar-token-2401072')
-
-//         // Nexus Registry Details
-//         NEXUS_URL = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
-//         NEXUS_REPO = "repository/2401072"
-//         IMAGE_NAME = "nextjs-project" 
-//         NEXUS_CREDS_ID = 'nexus-creds-2401072' 
-
-//         // Kubernetes Namespace ID
-//         K8S_NAMESPACE = "2401072"
+//         SONAR_HOST    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
         
-//         // Next.js Secrets
+//         // Nexus Settings (Screenshot ke hisaab se v2 prefix use kiya hai)
+//         NEXUS_URL     = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
+//         IMAGE_NAME    = "2401072_nextjs-project"
+//         K8S_NAMESPACE = "2401072"
+
+//         // Jenkins Credentials
+//         SONAR_TOKEN                       = credentials('sonar-token-2401072')
 //         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
 //         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
 //         CONVEX_DEPLOYMENT                 = credentials('convex-deploy-2401072')
@@ -73,38 +62,27 @@
 //     }
 
 //     stages {
-
-//         stage('Clean Workspace') {
+//         stage('Clean & Checkout') {
 //             steps {
 //                 container('node') {
 //                     sh 'rm -rf * || true'
+//                     git url: 'https://github.com/sam160203/interview.git', branch: 'main'
 //                 }
 //             }
 //         }
 
-//         stage('Checkout Code') {
-//             steps {
-//                 container('node') {
-//                     git url:'https://github.com/sam160203/interview.git', branch:'main'
-//                 }
-//             }
-//         }
-
-//         stage('Install & Build Next.js') {
+//         stage('Install & Build') {
 //             steps {
 //                 container('node') {
 //                     sh """
-//                         echo "Creating .env file for Next.js build..."
-
-//                         echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" > .env
-//                         echo "CLERK_SECRET_KEY=$CLERK_SECRET_KEY" >> .env
-//                         echo "CONVEX_DEPLOYMENT=$CONVEX_DEPLOYMENT" >> .env
-//                         echo "NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL" >> .env
-//                         echo "NEXT_PUBLIC_STREAM_API_KEY=$NEXT_PUBLIC_STREAM_API_KEY" >> .env
-//                         echo "STREAM_SECRET_KEY=$STREAM_SECRET_KEY" >> .env
-
-//                         yarn install
-//                         yarn build
+//                         echo "Generating .env file..."
+//                         echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}" > .env
+//                         echo "CLERK_SECRET_KEY=${CLERK_SECRET_KEY}" >> .env
+//                         echo "CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT}" >> .env
+//                         echo "NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}" >> .env
+//                         echo "NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY}" >> .env
+//                         echo "STREAM_SECRET_KEY=${STREAM_SECRET_KEY}" >> .env
+//                         yarn install && yarn build
 //                     """
 //                 }
 //             }
@@ -113,143 +91,85 @@
 //         stage('SonarQube Analysis') {
 //             steps {
 //                 container('sonar-scanner') {
-//                     withSonarQubeEnv('sonarqube-server') { 
-//                         sh """
+//                     sh """
 //                         sonar-scanner \\
 //                         -Dsonar.projectKey=2401072_interview-stream \\
 //                         -Dsonar.sources=. \\
 //                         -Dsonar.host.url=${SONAR_HOST} \\
 //                         -Dsonar.login=${SONAR_TOKEN}
-//                         """
-//                     }
+//                     """
 //                 }
 //             }
 //         }
 
-//         stage('Build Docker Image') {
+//         stage('Docker Build & Push') {
 //             steps {
 //                 container('dind') {
-//                     sh "docker build -t ${IMAGE_NAME}:latest ."
+//                     sh """
+//                         sleep 10
+//                         echo "Logging into Nexus..."
+//                         docker login ${NEXUS_URL} -u student -p Imcc@2025
+                        
+//                         echo "Building Image..."
+//                         docker build -t ${IMAGE_NAME}:latest .
+                        
+//                         echo "Tagging and Pushing to v2 folder (as per Nexus screenshot)..."
+//                         docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/v2/${IMAGE_NAME}:v1
+//                         docker push ${NEXUS_URL}/v2/${IMAGE_NAME}:v1
+//                     """
 //                 }
 //             }
 //         }
 
-//        stage('Push to Nexus') {
+//         stage('Kubernetes Deploy') {
 //             steps {
-//                 container('dind') {
-//                     withCredentials([
-//                         usernamePassword(
-//                             credentialsId: NEXUS_CREDS_ID,
-//                             usernameVariable: 'NEXUS_USER',
-//                             passwordVariable: 'NEXUS_PASS'
-//                         )
-//                     ]) {
-//                         // FIX: Script block to safely define Groovy variables (imageTag)
-//                         script {
-//                             def imageTag = "${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:${BUILD_NUMBER}"
-//                             def latestTag = "${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:latest"
-
+//                 container('kubectl') {
+//                     script {
+//                         try {
 //                             sh """
-//                                 echo "Logging in to Nexus Docker Registry: ${NEXUS_URL}"
-//                                 docker login ${NEXUS_URL} -u $NEXUS_USER -p $NEXUS_PASS
-
-//                                 # Update latest tag (FIX: Changed // to #)
+//                                 # 1. Namespace ensure karo
+//                                 kubectl create namespace ${K8S_NAMESPACE} || true
                                 
-//                                 echo "Tagging image: ${imageTag}"
-//                                 docker tag ${IMAGE_NAME}:latest ${imageTag}
+//                                 # 2. PULL SECRET FIX: Isme port 8085 aur student credentials check karo
+//                                 kubectl delete secret nexus-pull-secret -n ${K8S_NAMESPACE} || true
+//                                 kubectl create secret docker-registry nexus-pull-secret \\
+//                                     --docker-server=${NEXUS_URL} \\
+//                                     --docker-username=student \\
+//                                     --docker-password=Imcc@2025 \\
+//                                     --namespace=${K8S_NAMESPACE}
+                                
+//                                 # 3. Manifests apply karo
+//                                 kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
 
-//                                 echo "Pushing image to Nexus..."
-//                                 docker push ${imageTag}
-
-//                                 # Push the latest tag as well
-//                                 docker tag ${IMAGE_NAME}:latest ${latestTag}
-//                                 docker push ${latestTag}
+//                                 # 4. Image Update (v2 prefix ke sath)
+//                                 kubectl set image deployment/nextjs-deployment nextjs-container=${NEXUS_URL}/v2/${IMAGE_NAME}:v1 -n ${K8S_NAMESPACE}
+                                
+//                                 # 5. Env Vars setup
+//                                 kubectl set env deployment/nextjs-deployment \\
+//                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
+//                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
+//                                     CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} \\
+//                                     NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} \\
+//                                     NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} \\
+//                                     STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${K8S_NAMESPACE}
+                                
+//                                 echo "Waiting for rollout..."
+//                                 kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=300s
+//                             """
+//                         } catch (Exception e) {
+//                             sh """
+//                                 echo "DEPLOYMENT FAILED - Check Pull Secret permissions"
+//                                 kubectl get events -n ${K8S_NAMESPACE} --sort-by='.lastTimestamp' | tail -n 10
+//                                 exit 1
 //                             """
 //                         }
 //                     }
 //                 }
 //             }
 //         }
-
-//         stage('Create Namespace') {
-//             steps {
-//                 container('kubectl') {
-//                     sh """
-//                         kubectl create namespace ${K8S_NAMESPACE} || echo "Namespace already exists"
-//                         kubectl get ns
-//                     """
-//                 }
-//             }
-//         }
-
-//         // --- NEW STAGE: Create Nexus Pull Secret ---
-//         stage('Create Nexus Pull Secret') {
-//             steps {
-//                 container('kubectl') {
-//                     withCredentials([
-//                         usernamePassword(
-//                             credentialsId: NEXUS_CREDS_ID, // Using the Nexus Credential ID
-//                             usernameVariable: 'NEXUS_USER',
-//                             passwordVariable: 'NEXUS_PASS'
-//                         )
-//                     ]) {
-//                         sh """
-//                             echo "Attempting to create/update nexus-pull-secret..."
-//                             # Note: --dry-run and apply are used to handle creation/update without failing if it exists (FIXED COMMENT)
-//                             kubectl create secret docker-registry nexus-pull-secret \\
-//                                 --docker-server=${NEXUS_URL} \\
-//                                 --docker-username=$NEXUS_USER \\
-//                                 --docker-password=$NEXUS_PASS \
-//                                 -n ${K8S_NAMESPACE} || echo "Secret already exists or creation failed, proceeding..."
-//                         """
-//                     }
-//                 }
-//             }
-//         }
-
-//         stage('Deploy to Kubernetes') {
-//             steps {
-//                 container('kubectl') {
-//                     sh """
-//                         echo "🚀 Applying Kubernetes manifests in namespace ${K8S_NAMESPACE}..."
-//                         kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
-
-//                         # Injecting sensitive environment variables directly into the K8s deployment
-//                         echo "🔑 Injecting application secrets into deployment..."
-//                         kubectl set env deployment/nextjs-deployment \\
-//                         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \\
-//                         CLERK_SECRET_KEY=$CLERK_SECRET_KEY \\
-//                         CONVEX_DEPLOYMENT=$CONVEX_DEPLOYMENT \\
-//                         NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL \\
-//                         NEXT_PUBLIC_STREAM_API_KEY=$NEXT_PUBLIC_STREAM_API_KEY \\
-//                         STREAM_SECRET_KEY=$STREAM_SECRET_KEY \\
-//                         -n ${K8S_NAMESPACE}
-                        
-//                         echo "🔍 Waiting for deployment rollout..."
-                        
-//                         kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=120s || true
-//                     """
-//                 }
-//             }
-//         }
-
-//         stage('Debug Deployment') {
-//             steps {
-//                 container('kubectl') {
-//                     sh """
-//                         echo "--- Kubernetes Status (Debug) ---"
-//                         kubectl get all -n ${K8S_NAMESPACE}
-
-//                         # Show Pod details to find the exact error (ImagePullBackOff/CrashLoopBackOff)
-//                         POD_NAME=\$(kubectl get pods -n ${K8S_NAMESPACE} -l app=nextjs-app -o jsonpath='{.items[0].metadata.name}')
-//                         echo "--- Pod Description (\$POD_NAME) ---"
-//                         kubectl describe pod \$POD_NAME -n ${K8S_NAMESPACE} | tail -n 25
-//                     """
-//                 }
-//             }
-// }
 //     }
 // }
+
 
 
 pipeline {
@@ -262,15 +182,15 @@ spec:
   containers:
   - name: node
     image: node:18
-    command: ['cat']
+    command: ["cat"]
     tty: true
   - name: sonar-scanner
     image: sonarsource/sonar-scanner-cli
-    command: ['cat']
+    command: ["cat"]
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
+    command: ["cat"]
     tty: true
     securityContext:
       runAsUser: 0
@@ -298,12 +218,15 @@ spec:
     }
 
     environment {
-        SONAR_HOST    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
+        // Aligned with YAML placeholders
+        NAMESPACE         = "2401072"             // <NAMESPACE>
+        APP_NAME          = "nextjs-app"          // <APP_NAME>
+        PROJECT_NAMESPACE = "v2"                  // <PROJECT_NAMESPACE>
+        TAG               = "v1"                  // <TAG>
         
-        // Nexus Settings (Screenshot ke hisaab se v2 prefix use kiya hai)
-        NEXUS_URL     = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
-        IMAGE_NAME    = "2401072_nextjs-project"
-        K8S_NAMESPACE = "2401072"
+        REGISTRY_URL      = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
+        SONAR_HOST_URL    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
+        SONAR_PROJECT     = "2401072_interview-stream"
 
         // Jenkins Credentials
         SONAR_TOKEN                       = credentials('sonar-token-2401072')
@@ -347,29 +270,27 @@ spec:
                 container('sonar-scanner') {
                     sh """
                         sonar-scanner \\
-                        -Dsonar.projectKey=2401072_interview-stream \\
+                        -Dsonar.projectKey=${SONAR_PROJECT} \\
                         -Dsonar.sources=. \\
-                        -Dsonar.host.url=${SONAR_HOST} \\
+                        -Dsonar.host.url=${SONAR_HOST_URL} \\
                         -Dsonar.login=${SONAR_TOKEN}
                     """
                 }
             }
         }
 
-        stage('Docker Build & Push') {
+        stage('Docker Build - Tag - Push') {
             steps {
                 container('dind') {
                     sh """
-                        sleep 10
-                        echo "Logging into Nexus..."
-                        docker login ${NEXUS_URL} -u student -p Imcc@2025
+                        while (! docker stats --no-stream ); do sleep 1; done
+                        docker login ${REGISTRY_URL} -u student -p Imcc@2025
                         
-                        echo "Building Image..."
-                        docker build -t ${IMAGE_NAME}:latest .
+                        docker build -t ${APP_NAME}:${TAG} .
                         
-                        echo "Tagging and Pushing to v2 folder (as per Nexus screenshot)..."
-                        docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/v2/${IMAGE_NAME}:v1
-                        docker push ${NEXUS_URL}/v2/${IMAGE_NAME}:v1
+                        # Tagging to match your Nexus browse screenshot (v2 folder)
+                        docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
+                        docker push ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                     """
                 }
             }
@@ -381,39 +302,38 @@ spec:
                     script {
                         try {
                             sh """
-                                # 1. Namespace ensure karo
-                                kubectl create namespace ${K8S_NAMESPACE} || true
+                                kubectl create namespace ${NAMESPACE} || true
                                 
-                                # 2. PULL SECRET FIX: Isme port 8085 aur student credentials check karo
-                                kubectl delete secret nexus-pull-secret -n ${K8S_NAMESPACE} || true
-                                kubectl create secret docker-registry nexus-pull-secret \\
-                                    --docker-server=${NEXUS_URL} \\
+                                # Pull Secret name is 'nexus-secret' (Do not change)
+                                kubectl delete secret nexus-secret -n ${NAMESPACE} || true
+                                kubectl create secret docker-registry nexus-secret \\
+                                    --docker-server=${REGISTRY_URL} \\
                                     --docker-username=student \\
-                                    --docker-password=Imcc@2025 \\
-                                    --namespace=${K8S_NAMESPACE}
+                                    --docker-password=Imcc@2025 -n ${NAMESPACE}
                                 
-                                # 3. Manifests apply karo
-                                kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
+                                # Apply the Deployment YAML (ensure it is in k8s/ folder)
+                                kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # 4. Image Update (v2 prefix ke sath)
-                                kubectl set image deployment/nextjs-deployment nextjs-container=${NEXUS_URL}/v2/${IMAGE_NAME}:v1 -n ${K8S_NAMESPACE}
+                                # Update image in deployment/nextjs-app-deployment
+                                kubectl set image deployment/${APP_NAME}-deployment ${APP_NAME}=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
-                                # 5. Env Vars setup
-                                kubectl set env deployment/nextjs-deployment \\
+                                # Set Env Secrets
+                                kubectl set env deployment/${APP_NAME}-deployment \\
                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
                                     CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} \\
                                     NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} \\
                                     NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} \\
-                                    STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${K8S_NAMESPACE}
+                                    STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${NAMESPACE}
                                 
                                 echo "Waiting for rollout..."
-                                kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=300s
+                                kubectl rollout status deployment/${APP_NAME}-deployment -n ${NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {
                             sh """
-                                echo "DEPLOYMENT FAILED - Check Pull Secret permissions"
-                                kubectl get events -n ${K8S_NAMESPACE} --sort-by='.lastTimestamp' | tail -n 10
+                                echo "Deployment failed! Printing debug info..."
+                                kubectl get pods -n ${NAMESPACE}
+                                kubectl describe pods -n ${NAMESPACE} | head -n 50
                                 exit 1
                             """
                         }

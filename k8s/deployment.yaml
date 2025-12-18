@@ -3,51 +3,6 @@
 # metadata:
 #   name: nextjs-deployment
 # spec:
-#   replicas: 2
-#   selector:
-#     matchLabels:
-#       app: nextjs-app
-#   template:
-#     metadata:
-#       labels:
-#         app: nextjs-app
-#     spec:
-#       # --- CRITICAL FIX: ImagePullSecrets must be here (6 spaces indentation) ---
-#       imagePullSecrets:
-#         - name: nexus-pull-secret 
-#       # -------------------------------------------------------------------------
-#       containers:
-#         - name: nextjs-container
-#           image: nexus.imcc.com/repository/docker-hosted/nextjs-project:latest
-#           ports:
-#             - containerPort: 3000
-#           env:
-#             # Standard production variable
-#             - name: NODE_ENV
-#               value: production
-            
-#             # --- START: Next.js Pipeline Variables (Placeholders) ---
-#             - name: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-#               value: "" 
-#             - name: CLERK_SECRET_KEY
-#               value: "" 
-#             - name: CONVEX_DEPLOYMENT
-#               value: "" 
-#             - name: NEXT_PUBLIC_CONVEX_URL
-#               value: "" 
-#             - name: NEXT_PUBLIC_STREAM_API_KEY
-#               value: "" 
-#             - name: STREAM_SECRET_KEY
-#               value: "" 
-#             # --- END: Next.js Pipeline Variables ---
-
-
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nextjs-deployment
-spec:
   replicas: 2
   selector:
     matchLabels:
@@ -81,3 +36,95 @@ spec:
               value: ""
             - name: STREAM_SECRET_KEY
               value: ""
+
+
+
+
+
+
+# -------------------------------
+# Namespace (Auto-create handled by pipeline)
+# -------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "2401072"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextjs-app-deployment
+  namespace: "2401072"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nextjs-app
+  template:
+    metadata:
+      labels:
+        app: nextjs-app
+    spec:
+      imagePullSecrets:
+        - name: nexus-secret   # Matches Jenkinsfile secret creation
+      containers:
+        - name: nextjs-app
+          # Initial image (will be updated by 'kubectl set image' in pipeline)
+          image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/v2/2401072_nextjs-project:v1
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DB_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DB_NAME
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: DB_PORT
+            - name: DEBUG
+              value: "0"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - name: app-storage
+              mountPath: /app/data
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: app-storage
+          persistentVolumeClaim:
+            claimName: app-pvc
