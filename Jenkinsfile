@@ -277,8 +277,6 @@ spec:
                         while (! docker stats --no-stream ); do sleep 1; done
                         docker login ${REGISTRY_URL} -u student -p Imcc@2025
                         docker build -t ${APP_NAME}:${TAG} .
-                        
-                        # Tagging strictly for the 'v2' folder as seen in screenshot
                         docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                         docker push ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                     """
@@ -294,18 +292,28 @@ spec:
                             sh """
                                 kubectl create namespace ${NAMESPACE} || true
                                 
-                                # Pull Secret: Name MUST be 'nexus-secret'
+                                # Purane deployments ko clean karo takki resource release ho jaye
+                                kubectl delete deployment nextjs-deployment -n ${NAMESPACE} || true
+                                
+                                # Pull Secret creation
                                 kubectl delete secret nexus-secret -n ${NAMESPACE} || true
                                 kubectl create secret docker-registry nexus-secret --docker-server=${REGISTRY_URL} --docker-username=student --docker-password=Imcc@2025 -n ${NAMESPACE}
                                 
+                                # Apply fresh manifests
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # Updating Deployment Image
+                                # Image and Env updates
                                 kubectl set image deployment/${APP_NAME}-deployment ${APP_NAME}=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
-                                # Updating Env Variables
-                                kubectl set env deployment/${APP_NAME}-deployment NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} CLERK_SECRET_KEY=${CLERK_SECRET_KEY} CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${NAMESPACE}
+                                kubectl set env deployment/${APP_NAME}-deployment \\
+                                    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
+                                    CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
+                                    CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} \\
+                                    NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} \\
+                                    NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} \\
+                                    STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${NAMESPACE}
                                 
+                                echo "Waiting for rollout..."
                                 kubectl rollout status deployment/${APP_NAME}-deployment -n ${NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {

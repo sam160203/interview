@@ -20,22 +20,4 @@ spec:
           image: nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085/v2/2401072_nextjs-project:v1
           ports:
             - containerPort: 3000
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 3000
-            initialDelaySeconds: 10
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 3000
-            initialDelaySeconds: 30
-            periodSeconds: 30
-          volumeMounts:
-            - name: app-storage
-              mountPath: /app/data
-      volumes:
-        - name: app-storage
-          persistentVolumeClaim:
-            claimName: app-pvc
+          # Probes, PVC, aur Resources hata diye hain taaki pod start ho jaye
