@@ -226,7 +226,6 @@ spec:
         SONAR_HOST_URL    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
         SONAR_PROJECT     = "2401072_interview-stream"
 
-        // Credentials
         SONAR_TOKEN                       = credentials('sonar-token-2401072')
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
@@ -293,21 +292,22 @@ spec:
                             sh """
                                 kubectl create namespace ${NAMESPACE} || true
                                 
-                                # Clean up purane atke hue deployments
+                                # Purane deployments ko clean karo (Corrected naming)
+                                kubectl delete deployment nextjs-app-deployment -n ${NAMESPACE} || true
                                 kubectl delete deployment nextjs-deployment -n ${NAMESPACE} || true
                                 
-                                # Secret for Nexus
+                                # Pull Secret for Nexus
                                 kubectl delete secret nexus-secret -n ${NAMESPACE} || true
                                 kubectl create secret docker-registry nexus-secret --docker-server=${REGISTRY_URL} --docker-username=student --docker-password=Imcc@2025 -n ${NAMESPACE}
                                 
-                                # Apply all files from k8s folder (Deployment, Service, Ingress)
+                                # Apply manifests from k8s folder
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # Force update the image
-                                kubectl set image deployment/nextjs-app-deployment nextjs-app=${REGISTRY_URL}/v2/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
+                                # Force update the image path (Strictly aligned with Tag/Push stage)
+                                kubectl set image deployment/nextjs-app-deployment nextjs-app=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
                                 # Update Env Variables
-                                kubectl set env deployment/${APP_NAME}-deployment \\
+                                kubectl set env deployment/nextjs-app-deployment \\
                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
                                     CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} \\
@@ -316,7 +316,7 @@ spec:
                                     STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${NAMESPACE}
                                 
                                 echo "Waiting for rollout..."
-                                kubectl rollout status deployment/${APP_NAME}-deployment -n ${NAMESPACE} --timeout=300s
+                                kubectl rollout status deployment/nextjs-app-deployment -n ${NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {
                             sh """
