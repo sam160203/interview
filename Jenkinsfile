@@ -298,16 +298,12 @@ spec:
     }
 
     environment {
-        // Internal URLs
         SONAR_HOST    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
         NEXUS_URL     = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
         NEXUS_REPO    = "repository/2401072"
-        
-        // Metadata
         IMAGE_NAME    = "nextjs-project"
         K8S_NAMESPACE = "2401072"
 
-        // Credentials Mapping
         SONAR_TOKEN                       = credentials('sonar-token-2401072')
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
@@ -331,16 +327,14 @@ spec:
             steps {
                 container('node') {
                     sh """
-                        echo "Generating .env file for build..."
+                        echo "Generating .env file..."
                         echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}" > .env
                         echo "CLERK_SECRET_KEY=${CLERK_SECRET_KEY}" >> .env
                         echo "CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT}" >> .env
                         echo "NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}" >> .env
                         echo "NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY}" >> .env
                         echo "STREAM_SECRET_KEY=${STREAM_SECRET_KEY}" >> .env
-                        
-                        yarn install
-                        yarn build
+                        yarn install && yarn build
                     """
                 }
             }
@@ -349,7 +343,6 @@ spec:
         stage('SonarQube Analysis') {
             steps {
                 container('sonar-scanner') {
-                    // Manual shell execution because the 'withSonarQubeEnv' plugin is missing
                     sh """
                         sonar-scanner \\
                         -Dsonar.projectKey=2401072_interview-stream \\
@@ -384,27 +377,43 @@ spec:
             steps {
                 container('kubectl') {
                     withCredentials([usernamePassword(credentialsId: 'nexus-creds-2401072', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                        sh """
-                            kubectl create namespace ${K8S_NAMESPACE} || true
-                            
-                            kubectl delete secret nexus-pull-secret -n ${K8S_NAMESPACE} || true
-                            kubectl create secret docker-registry nexus-pull-secret \\
-                                --docker-server=${NEXUS_URL} \\
-                                --docker-username=\$USER \\
-                                --docker-password=\$PASS -n ${K8S_NAMESPACE}
-                            
-                            kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
-                            
-                            kubectl set env deployment/nextjs-deployment \\
-                                NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
-                                CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
-                                CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} \\
-                                NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} \\
-                                NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} \\
-                                STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${K8S_NAMESPACE}
-                            
-                            kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=120s
-                        """
+                        script {
+                            try {
+                                sh """
+                                    kubectl create namespace ${K8S_NAMESPACE} || true
+                                    
+                                    kubectl delete secret nexus-pull-secret -n ${K8S_NAMESPACE} || true
+                                    kubectl create secret docker-registry nexus-pull-secret \\
+                                        --docker-server=${NEXUS_URL} \\
+                                        --docker-username=\$USER \\
+                                        --docker-password=\$PASS -n ${K8S_NAMESPACE}
+                                    
+                                    kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
+
+                                    # Update image to current build tag and set secrets
+                                    # Ensure your container name in deployment.yaml is 'nextjs-container'
+                                    kubectl set image deployment/nextjs-deployment nextjs-container=${NEXUS_URL}/${NEXUS_REPO}/${IMAGE_NAME}:${BUILD_NUMBER} -n ${K8S_NAMESPACE}
+                                    
+                                    kubectl set env deployment/nextjs-deployment \\
+                                        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
+                                        CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
+                                        CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} \\
+                                        NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} \\
+                                        NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} \\
+                                        STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${K8S_NAMESPACE}
+                                    
+                                    echo "Waiting for rollout (300s timeout)..."
+                                    kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=300s
+                                """
+                            } catch (Exception e) {
+                                sh """
+                                    echo "Deployment failed! Printing debug info..."
+                                    kubectl get pods -n ${K8S_NAMESPACE}
+                                    kubectl describe pods -n ${K8S_NAMESPACE} | head -n 50
+                                    exit 1
+                                """
+                            }
+                        }
                     }
                 }
             }
