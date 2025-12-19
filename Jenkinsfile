@@ -8,15 +8,15 @@
 //   containers:
 //   - name: node
 //     image: node:18
-//     command: ['cat']
+//     command: ["cat"]
 //     tty: true
 //   - name: sonar-scanner
 //     image: sonarsource/sonar-scanner-cli
-//     command: ['cat']
+//     command: ["cat"]
 //     tty: true
 //   - name: kubectl
 //     image: bitnami/kubectl:latest
-//     command: ['cat']
+//     command: ["cat"]
 //     tty: true
 //     securityContext:
 //       runAsUser: 0
@@ -44,14 +44,14 @@
 //     }
 
 //     environment {
-//         SONAR_HOST    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
-        
-//         // Nexus Settings (Screenshot ke hisaab se v2 prefix use kiya hai)
-//         NEXUS_URL     = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
-//         IMAGE_NAME    = "2401072_nextjs-project"
-//         K8S_NAMESPACE = "2401072"
+//         NAMESPACE         = "2401072"
+//         APP_NAME          = "nextjs-app"
+//         PROJECT_NAMESPACE = "v2"
+//         TAG               = "v1"
+//         REGISTRY_URL      = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
+//         SONAR_HOST_URL    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
+//         SONAR_PROJECT     = "2401072_interview-stream"
 
-//         // Jenkins Credentials
 //         SONAR_TOKEN                       = credentials('sonar-token-2401072')
 //         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = credentials('clerk-pub-2401072')
 //         CLERK_SECRET_KEY                  = credentials('clerk-secret-2401072')
@@ -91,31 +91,20 @@
 //         stage('SonarQube Analysis') {
 //             steps {
 //                 container('sonar-scanner') {
-//                     sh """
-//                         sonar-scanner \\
-//                         -Dsonar.projectKey=2401072_interview-stream \\
-//                         -Dsonar.sources=. \\
-//                         -Dsonar.host.url=${SONAR_HOST} \\
-//                         -Dsonar.login=${SONAR_TOKEN}
-//                     """
+//                     sh "sonar-scanner -Dsonar.projectKey=${SONAR_PROJECT} -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
 //                 }
 //             }
 //         }
 
-//         stage('Docker Build & Push') {
+//         stage('Docker Build - Tag - Push') {
 //             steps {
 //                 container('dind') {
 //                     sh """
-//                         sleep 10
-//                         echo "Logging into Nexus..."
-//                         docker login ${NEXUS_URL} -u student -p Imcc@2025
-                        
-//                         echo "Building Image..."
-//                         docker build -t ${IMAGE_NAME}:latest .
-                        
-//                         echo "Tagging and Pushing to v2 folder (as per Nexus screenshot)..."
-//                         docker tag ${IMAGE_NAME}:latest ${NEXUS_URL}/v2/${IMAGE_NAME}:v1
-//                         docker push ${NEXUS_URL}/v2/${IMAGE_NAME}:v1
+//                         while (! docker stats --no-stream ); do sleep 1; done
+//                         docker login ${REGISTRY_URL} -u student -p Imcc@2025
+//                         docker build -t ${APP_NAME}:${TAG} .
+//                         docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
+//                         docker push ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
 //                     """
 //                 }
 //             }
@@ -127,39 +116,38 @@
 //                     script {
 //                         try {
 //                             sh """
-//                                 # 1. Namespace ensure karo
-//                                 kubectl create namespace ${K8S_NAMESPACE} || true
+//                                 kubectl create namespace ${NAMESPACE} || true
                                 
-//                                 # 2. PULL SECRET FIX: Isme port 8085 aur student credentials check karo
-//                                 kubectl delete secret nexus-pull-secret -n ${K8S_NAMESPACE} || true
-//                                 kubectl create secret docker-registry nexus-pull-secret \\
-//                                     --docker-server=${NEXUS_URL} \\
-//                                     --docker-username=student \\
-//                                     --docker-password=Imcc@2025 \\
-//                                     --namespace=${K8S_NAMESPACE}
+//                                 # Purane deployments ko clean karo (Corrected naming)
+//                                 kubectl delete deployment nextjs-app-deployment -n ${NAMESPACE} || true
+//                                 kubectl delete deployment nextjs-deployment -n ${NAMESPACE} || true
                                 
-//                                 # 3. Manifests apply karo
-//                                 kubectl apply -f k8s/ -n ${K8S_NAMESPACE}
+//                                 # Pull Secret for Nexus
+//                                 kubectl delete secret nexus-secret -n ${NAMESPACE} || true
+//                                 kubectl create secret docker-registry nexus-secret --docker-server=${REGISTRY_URL} --docker-username=student --docker-password=Imcc@2025 -n ${NAMESPACE}
+                                
+//                                 # Apply manifests from k8s folder
+//                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-//                                 # 4. Image Update (v2 prefix ke sath)
-//                                 kubectl set image deployment/nextjs-deployment nextjs-container=${NEXUS_URL}/v2/${IMAGE_NAME}:v1 -n ${K8S_NAMESPACE}
+//                                 # Force update the image path (Strictly aligned with Tag/Push stage)
+//                                 kubectl set image deployment/nextjs-app-deployment nextjs-app=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
-//                                 # 5. Env Vars setup
-//                                 kubectl set env deployment/nextjs-deployment \\
+//                                 # Update Env Variables
+//                                 kubectl set env deployment/nextjs-app-deployment \\
 //                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
 //                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
 //                                     CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT} \\
 //                                     NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL} \\
 //                                     NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY} \\
-//                                     STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${K8S_NAMESPACE}
+//                                     STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${NAMESPACE}
                                 
 //                                 echo "Waiting for rollout..."
-//                                 kubectl rollout status deployment/nextjs-deployment -n ${K8S_NAMESPACE} --timeout=300s
+//                                 kubectl rollout status deployment/nextjs-app-deployment -n ${NAMESPACE} --timeout=300s
 //                             """
 //                         } catch (Exception e) {
 //                             sh """
-//                                 echo "DEPLOYMENT FAILED - Check Pull Secret permissions"
-//                                 kubectl get events -n ${K8S_NAMESPACE} --sort-by='.lastTimestamp' | tail -n 10
+//                                 echo "Deployment failed! Printing pods status..."
+//                                 kubectl get pods -n ${NAMESPACE}
 //                                 exit 1
 //                             """
 //                         }
@@ -169,6 +157,10 @@
 //         }
 //     }
 // }
+
+
+
+
 
 
 
@@ -277,6 +269,8 @@ spec:
                         while (! docker stats --no-stream ); do sleep 1; done
                         docker login ${REGISTRY_URL} -u student -p Imcc@2025
                         docker build -t ${APP_NAME}:${TAG} .
+                        
+                        # TAGGING MUST MATCH DEPLOYMENT YAML
                         docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                         docker push ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
                     """
@@ -290,23 +284,21 @@ spec:
                     script {
                         try {
                             sh """
-                                kubectl create namespace ${NAMESPACE} || true
+                                # 1. Clean up everything to avoid termination hang
+                                kubectl delete deployment nextjs-app-deployment -n ${NAMESPACE} --wait=false || true
+                                kubectl delete deployment nextjs-deployment -n ${NAMESPACE} --wait=false || true
                                 
-                                # Purane deployments ko clean karo (Corrected naming)
-                                kubectl delete deployment nextjs-app-deployment -n ${NAMESPACE} || true
-                                kubectl delete deployment nextjs-deployment -n ${NAMESPACE} || true
-                                
-                                # Pull Secret for Nexus
+                                # 2. Refresh Secret
                                 kubectl delete secret nexus-secret -n ${NAMESPACE} || true
                                 kubectl create secret docker-registry nexus-secret --docker-server=${REGISTRY_URL} --docker-username=student --docker-password=Imcc@2025 -n ${NAMESPACE}
                                 
-                                # Apply manifests from k8s folder
+                                # 3. Apply manifests
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # Force update the image path (Strictly aligned with Tag/Push stage)
+                                # 4. Update image with the EXACT string from your YAML
                                 kubectl set image deployment/nextjs-app-deployment nextjs-app=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
-                                # Update Env Variables
+                                # 5. Set Environment Variables
                                 kubectl set env deployment/nextjs-app-deployment \\
                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
@@ -320,8 +312,8 @@ spec:
                             """
                         } catch (Exception e) {
                             sh """
-                                echo "Deployment failed! Printing pods status..."
-                                kubectl get pods -n ${NAMESPACE}
+                                echo "Rollout failed. Checking events..."
+                                kubectl describe pod -l app=nextjs-app -n ${NAMESPACE} | grep -A 20 Events
                                 exit 1
                             """
                         }
