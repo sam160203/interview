@@ -296,7 +296,9 @@ spec:
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
                                 # Fix: Image path matches exactly what was pushed in stage 4
-                                kubectl set image deployment/nextjs-app-deployment nextjs-app=${REGISTRY_URL}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
+                                # Fetch Service ClusterIP to bypass Node DNS issues
+                                REGISTRY_IP=\$(kubectl get svc nexus-service-for-docker-hosted-registry -n nexus -o jsonpath='{.spec.clusterIP}')
+                                kubectl set image deployment/nextjs-app-deployment nextjs-app=\${REGISTRY_IP}:8085/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
                                 # Update Env Variables
                                 kubectl set env deployment/nextjs-app-deployment \\
