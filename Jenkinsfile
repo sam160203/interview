@@ -223,7 +223,11 @@ spec:
         CONVEX_DEPLOYMENT                 = credentials('convex-deploy-2401072')
         NEXT_PUBLIC_CONVEX_URL            = credentials('convex-url-2401072')
         NEXT_PUBLIC_STREAM_API_KEY        = credentials('stream-pub-2401072')
+        NEXT_PUBLIC_STREAM_API_KEY        = credentials('stream-pub-2401072')
         STREAM_SECRET_KEY                 = credentials('stream-secret-2401072')
+        
+        // Use ECR Public mirror to avoid Docker Hub rate limits
+        BASE_IMAGE_REGISTRY = "public.ecr.aws/docker/library"
     }
 
     stages {
@@ -267,7 +271,7 @@ spec:
                     sh """
                         while (! docker stats --no-stream ); do sleep 1; done
                         docker login ${REGISTRY_URL} -u student -p Imcc@2025
-                        docker build --build-arg REGISTRY_URL=${REGISTRY_URL} -t ${APP_NAME}:${TAG} .
+                        docker build --build-arg REGISTRY_URL=${BASE_IMAGE_REGISTRY} -t ${APP_NAME}:${TAG} .
                         
                         # Fix: Direct tagging without extra PROJECT_NAMESPACE
                         docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${NAMESPACE}_nextjs-project:${TAG}
