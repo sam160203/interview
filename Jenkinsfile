@@ -212,7 +212,6 @@ spec:
     environment {
         NAMESPACE         = "2401072"
         APP_NAME          = "nextjs-app"
-        PROJECT_NAMESPACE = "v2"
         TAG               = "v1"
         REGISTRY_URL      = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
         SONAR_HOST_URL    = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
@@ -248,7 +247,7 @@ spec:
                         echo "NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}" >> .env
                         echo "NEXT_PUBLIC_STREAM_API_KEY=${NEXT_PUBLIC_STREAM_API_KEY}" >> .env
                         echo "STREAM_SECRET_KEY=${STREAM_SECRET_KEY}" >> .env
-                        yarn install && yarn build
+                        yarn install --network-timeout 1000000 && yarn build
                     """
                 }
             }
@@ -270,9 +269,9 @@ spec:
                         docker login ${REGISTRY_URL} -u student -p Imcc@2025
                         docker build -t ${APP_NAME}:${TAG} .
                         
-                        # TAGGING MUST MATCH DEPLOYMENT YAML
-                        docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
-                        docker push ${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG}
+                        # Fix: Direct tagging without extra PROJECT_NAMESPACE
+                        docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${NAMESPACE}_nextjs-project:${TAG}
+                        docker push ${REGISTRY_URL}/${NAMESPACE}_nextjs-project:${TAG}
                     """
                 }
             }
@@ -284,21 +283,22 @@ spec:
                     script {
                         try {
                             sh """
-                                # 1. Clean up everything to avoid termination hang
-                                kubectl delete deployment nextjs-app-deployment -n ${NAMESPACE} --wait=false || true
-                                kubectl delete deployment nextjs-deployment -n ${NAMESPACE} --wait=false || true
+                                kubectl create namespace ${NAMESPACE} || true
                                 
-                                # 2. Refresh Secret
+                                # Clean start
+                                kubectl delete deployment nextjs-app-deployment -n ${NAMESPACE} --wait=false || true
+                                
+                                # Refresh Secret
                                 kubectl delete secret nexus-secret -n ${NAMESPACE} || true
                                 kubectl create secret docker-registry nexus-secret --docker-server=${REGISTRY_URL} --docker-username=student --docker-password=Imcc@2025 -n ${NAMESPACE}
                                 
-                                # 3. Apply manifests
+                                # Apply manifests from k8s folder
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # 4. Update image with the EXACT string from your YAML
-                                kubectl set image deployment/nextjs-app-deployment nextjs-app=${REGISTRY_URL}/${PROJECT_NAMESPACE}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
+                                # Fix: Image path matches exactly what was pushed in stage 4
+                                kubectl set image deployment/nextjs-app-deployment nextjs-app=${REGISTRY_URL}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
-                                # 5. Set Environment Variables
+                                # Update Env Variables
                                 kubectl set env deployment/nextjs-app-deployment \\
                                     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \\
                                     CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
@@ -308,12 +308,12 @@ spec:
                                     STREAM_SECRET_KEY=${STREAM_SECRET_KEY} -n ${NAMESPACE}
                                 
                                 echo "Waiting for rollout..."
-                                kubectl rollout status deployment/nextjs-app-deployment -n ${NAMESPACE} --timeout=300s
+                                kubectl rollout status deployment/nextjs-app-deployment -n ${NAMESPACE} --timeout=180s
                             """
                         } catch (Exception e) {
                             sh """
-                                echo "Rollout failed. Checking events..."
-                                kubectl describe pod -l app=nextjs-app -n ${NAMESPACE} | grep -A 20 Events
+                                echo "Rollout failed. Printing Pod Events for Debugging:"
+                                kubectl describe pods -l app=nextjs-app -n ${NAMESPACE} | grep -A 30 Events
                                 exit 1
                             """
                         }
