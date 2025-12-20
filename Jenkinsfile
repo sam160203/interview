@@ -223,7 +223,7 @@ spec:
         CONVEX_DEPLOYMENT                 = credentials('convex-deploy-2401072')
         NEXT_PUBLIC_CONVEX_URL            = credentials('convex-url-2401072')
         NEXT_PUBLIC_STREAM_API_KEY        = credentials('stream-pub-2401072')
-        NEXT_PUBLIC_STREAM_API_KEY        = credentials('stream-pub-2401072')
+
         STREAM_SECRET_KEY                 = credentials('stream-secret-2401072')
         
         // Use ECR Public mirror to avoid Docker Hub rate limits
