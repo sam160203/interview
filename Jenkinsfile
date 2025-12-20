@@ -308,11 +308,13 @@ spec:
                                 # Default to ClusterIP
                                 PULL_URL="\${CLUSTER_IP}:8085"
                                 
-                                # If NodePort exists, use Node IP (192.168.20.250)
+                                # If NodePort exists, try localhost first (often treated as secure)
                                 if [ ! -z "\${NODE_PORT}" ]; then
-                                    PULL_URL="192.168.20.250:\${NODE_PORT}"
+                                    # Try localhost first as Kubelet often treats it as secure origin allowing HTTP
+                                    PULL_URL="localhost:\${NODE_PORT}"
                                 fi
                                 
+                                echo "Setting image to: \${PULL_URL}/${NAMESPACE}_nextjs-project:${TAG}"
                                 kubectl set image deployment/nextjs-app-deployment nextjs-app=\${PULL_URL}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
                                 # Update Env Variables
