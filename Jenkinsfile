@@ -299,10 +299,21 @@ spec:
                                 # Apply manifests from k8s folder
                                 kubectl apply -f k8s/ -n ${NAMESPACE}
 
-                                # Fix: Image path matches exactly what was pushed in stage 4
-                                # Fetch Service ClusterIP to bypass Node DNS issues
-                                REGISTRY_IP=\$(kubectl get svc nexus-service-for-docker-hosted-registry -n nexus -o jsonpath='{.spec.clusterIP}')
-                                kubectl set image deployment/nextjs-app-deployment nextjs-app=\${REGISTRY_IP}:8085/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
+                                # Fetch Service ClusterIP
+                                CLUSTER_IP=\$(kubectl get svc nexus-service-for-docker-hosted-registry -n nexus -o jsonpath='{.spec.clusterIP}')
+                                
+                                # Try to fetch NodePort
+                                NODE_PORT=\$(kubectl get svc nexus-service-for-docker-hosted-registry -n nexus -o jsonpath='{.spec.ports[?(@.port==8085)].nodePort}')
+                                
+                                # Default to ClusterIP
+                                PULL_URL="\${CLUSTER_IP}:8085"
+                                
+                                # If NodePort exists, use Node IP (192.168.20.250)
+                                if [ ! -z "\${NODE_PORT}" ]; then
+                                    PULL_URL="192.168.20.250:\${NODE_PORT}"
+                                fi
+                                
+                                kubectl set image deployment/nextjs-app-deployment nextjs-app=\${PULL_URL}/${NAMESPACE}_nextjs-project:${TAG} -n ${NAMESPACE}
                                 
                                 # Update Env Variables
                                 kubectl set env deployment/nextjs-app-deployment \\
