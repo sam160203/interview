@@ -1,7 +1,8 @@
 # # -----------------------------
 # # ---- Base Image (from Docker Hub)
 # # -----------------------------
-# FROM node:18-alpine AS base
+ARG REGISTRY_URL=docker.io/library
+FROM ${REGISTRY_URL}/node:18-alpine AS base
 
 # WORKDIR /app
 
@@ -46,7 +47,7 @@
 
 
 # Install dependencies
-FROM node:18-alpine AS builder
+FROM ${REGISTRY_URL}/node:18-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
@@ -59,7 +60,7 @@ COPY . .
 RUN yarn build
 
 # Production image
-FROM node:18-alpine AS runner
+FROM ${REGISTRY_URL}/node:18-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV production

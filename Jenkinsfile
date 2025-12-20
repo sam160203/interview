@@ -267,7 +267,7 @@ spec:
                     sh """
                         while (! docker stats --no-stream ); do sleep 1; done
                         docker login ${REGISTRY_URL} -u student -p Imcc@2025
-                        docker build -t ${APP_NAME}:${TAG} .
+                        docker build --build-arg REGISTRY_URL=${REGISTRY_URL} -t ${APP_NAME}:${TAG} .
                         
                         # Fix: Direct tagging without extra PROJECT_NAMESPACE
                         docker tag ${APP_NAME}:${TAG} ${REGISTRY_URL}/${NAMESPACE}_nextjs-project:${TAG}
